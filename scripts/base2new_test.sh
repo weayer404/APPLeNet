@@ -1,16 +1,13 @@
 #!/bin/bash
 
-cd ../..
+source config.sh 
+cd ..
 
 # custom config
-DATA=/Data
-TRAINER=AppleNet
 
 DATASET=$1
 SEED=$2
 
-CFG=vit_b16_c4
-SHOTS=16
 # LOADEP=30
 SUB=new 
 
@@ -34,5 +31,5 @@ else
     --model-dir ${MODEL_DIR} \
     --eval-only \
     DATASET.NUM_SHOTS ${SHOTS} \
-    DATASET.SUBSAMPLE_CLASSES ${SUB}
+    DATASET.SUBSAMPLE_CLASSES ${SUB} 
 fi

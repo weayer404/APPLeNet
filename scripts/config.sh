@@ -23,3 +23,4 @@ MAX_CSV_FILE="${OUTPUT_BASE}/max_${CFG}_${START_RUN}_${END_RUN}.csv" # 最大值
 # nohup bash run_all_average_applenet.sh > ~/files/log_all_applenet.txt 2>&1 &
 ############################## 查看脚本输出 #############################
 # tail -f ~/files/log_all_applenet.txt
+# pkill -f run_all_average_applenet.sh
