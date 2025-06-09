@@ -37,7 +37,7 @@ plus_avg_value() {
             key="${total_type},${type},${model}"
             entries["$key"]+=$'\n'"$accuracy,$error,$macro_f1,$run"  # 以换行符分隔数据行
         fi
-    done < "$RESULT_CSV_FILE"
+    done < "$RESULT_SUMMARY_FILE"
 
     # 处理每个组合的数据
     for key in "${output_order[@]}"; do

@@ -19,7 +19,7 @@ PLUS_AVG_CSV_FILE="${OUTPUT_BASE}/plus_avg_${CFG}_${START_RUN}_${END_RUN}.csv" #
 
 MAX_CSV_FILE="${OUTPUT_BASE}/max_${CFG}_${START_RUN}_${END_RUN}.csv" # 最大值
 
-RESULT_FILE="${OUTPUT_BASE}/result_${CFG}_${START_RUN}_${END_RUN}_summary.csv"
+RESULT_SUMMARY_FILE="${OUTPUT_BASE}/result_summary_${CFG}_${START_RUN}_${END_RUN}.csv"
 ################################ 运行脚本 ###############################
 # nohup bash run_all_average_applenet.sh > ~/files/log_all_applenet.txt 2>&1 &
 ############################## 查看脚本输出 #############################

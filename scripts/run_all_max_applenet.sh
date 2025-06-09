@@ -62,7 +62,7 @@ max_value() {
                 max_accuracy_line["$key"]="$accuracy,$error,$macro_f1,$run,$total_type,$type,$model"
             fi
         fi
-    done < $RESULT_CSV_FILE
+    done < $RESULT_SUMMARY_FILE
     
     # 将每个组合的最大值行按顺序写入到最大值文件
     for key in "${output_order[@]}"; do

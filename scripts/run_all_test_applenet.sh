@@ -19,7 +19,7 @@ output_order=(
 )
 
 
-> "$RESULT_FILE"
+> "$RESULT_SUMMARY_FILE"
 
 # 判断任务类型和阶段
 get_type_info() {
@@ -102,7 +102,7 @@ run_until_success() {
                     error=$(echo "$err_line" | awk -F': ' '{print $2}' | tr -d '%')
                     macro_f1=$(echo "$f1_line" | awk -F': ' '{print $2}' | tr -d '%')
 
-                    echo "$mode,$result,$dataset,$seed,$accuracy,$error,$macro_f1" >> "$RESULT_FILE"
+                    echo "$mode,$result,$dataset,$seed,$accuracy,$error,$macro_f1" >> "$RESULT_SUMMARY_FILE"
                     echo "✅ 直接从 log.txt 读取结果：$accuracy, $error, $macro_f1"
                     return
                 else
@@ -145,7 +145,7 @@ run_until_success() {
             macro_f1=$(echo "$output" | grep -E "\* macro_f1:" | awk -F': ' '{print $2}' | tr -d '%')
 
             if [ -n "$accuracy" ] && [ -n "$error" ] && [ -n "$macro_f1" ]; then
-                echo "$mode,$result,$dataset,$seed,$accuracy,$error,$macro_f1" >> "$RESULT_FILE"
+                echo "$mode,$result,$dataset,$seed,$accuracy,$error,$macro_f1" >> "$RESULT_SUMMARY_FILE"
                 echo "✅ 成功写入结果：$mode,$result,$dataset,$seed,$accuracy,$error,$macro_f1"
                 return
             fi
@@ -154,7 +154,7 @@ run_until_success() {
         ((attempt++))
     done
 
-    echo "❌ 多次尝试失败：$full_cmd" >> "$RESULT_FILE"
+    echo "❌ 多次尝试失败：$full_cmd" >> "$RESULT_SUMMARY_FILE"
 }
 
 # 主循环
@@ -164,4 +164,4 @@ for cmd in "${output_order[@]}"; do
     done
 done
 
-echo "✅ 所有任务执行完毕，结果已保存至 $RESULT_FILE"
+echo "✅ 所有任务执行完毕，结果已保存至 $RESULT_SUMMARY_FILE"
