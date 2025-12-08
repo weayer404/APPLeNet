@@ -281,6 +281,32 @@ class CustomCLIP(nn.Module):
         logits = torch.stack(logits)
 
         return logits, ctx_shifted, label
+    
+    @torch.no_grad()
+    def extract_features(self, image):
+        """
+        给 t-SNE 用的特征接口：
+        - clip_feats: 原始 image_features（可视为 CLIP 图像特征）
+        - apple_feats: ctx_shifted 在 context 维度上的平均（AppleNet 的融合表征）
+        """
+        # 1) 先走一遍图像编码
+        image_features, data = self.image_encoder(image.type(self.dtype))
+        # 归一化，和 forward 里保持一致
+        image_features = image_features / image_features.norm(dim=-1, keepdim=True)
+
+        # 2) 走一遍 prompt_learner，得到 ctx_shifted
+        prompts, ctx_shifted = self.prompt_learner(image_features, data)
+        # ctx_shifted: [B, 4, C]  (这里 4 是你注入后的 context 数)
+
+        # 3) 第一个返回值：作为“CLIP baseline”的图像特征
+        clip_feats = image_features    # [B, C]
+
+        # 4) 第二个返回值：AppleNet 的语义融合特征
+        #    对 ctx_shifted 在 context 维度做平均： [B, 4, C] -> [B, C]
+        apple_feats = ctx_shifted.mean(dim=1)
+
+        return clip_feats, apple_feats
+
 
 class AppleLoss(_Loss):
     def __init__(self, T):
