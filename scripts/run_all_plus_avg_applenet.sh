@@ -27,15 +27,15 @@ plus_avg_value() {
     declare -A entries  # 使用关联数组存储每个组合的所有数据行
 
     # 读取并收集数据
-    while IFS=',' read -r total_type type model run accuracy error macro_f1; do
+    while IFS=',' read -r total_type type model run accuracy kappa macro_f1; do
         if [[ $run -ge $START_RUN && $run -le $END_RUN ]]; then
             # 验证数据有效性
-            if [[ ! "$accuracy" =~ ^[0-9.]+$ ]] || [[ ! "$error" =~ ^[0-9.]+$ ]] || [[ ! "$macro_f1" =~ ^[0-9.]+$ ]]; then
-                echo "Skipping invalid line: $total_type,$type,$model,$run,$accuracy,$error,$macro_f1"
+            if [[ ! "$accuracy" =~ ^[0-9.]+$ ]] || [[ ! "$kappa" =~ ^[0-9.]+$ ]] || [[ ! "$macro_f1" =~ ^[0-9.]+$ ]]; then
+                echo "Skipping invalid line: $total_type,$type,$model,$run,$accuracy,$kappa,$macro_f1"
                 continue
             fi
             key="${total_type},${type},${model}"
-            entries["$key"]+=$'\n'"$accuracy,$error,$macro_f1,$run"  # 以换行符分隔数据行
+            entries["$key"]+=$'\n'"$accuracy,$kappa,$macro_f1,$run"  # 以换行符分隔数据行
         fi
     done < "$RESULT_SUMMARY_FILE"
 
@@ -77,7 +77,7 @@ plus_avg_value() {
             avg_f1=$(printf "%.2f" $(bc -l <<< "scale=6; $sum_f1 / $count"))
         fi
 
-        # 输出结果到文件（保持原字段顺序：accuracy,error,macro_f1,run,...）
+        # 输出结果到文件（保持原字段顺序：accuracy,kappa,macro_f1,run,...）
         IFS=',' read -r t_type ty mo <<< "$key"
         printf "%.2f,%.2f,%.2f,%s,%s,%s\n" "$avg_acc" "$avg_err" "$avg_f1" "$t_type" "$ty" "$mo" >> "$PLUS_AVG_CSV_FILE"
     done

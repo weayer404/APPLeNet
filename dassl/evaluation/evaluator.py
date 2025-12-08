@@ -2,7 +2,8 @@ import numpy as np
 import os.path as osp
 from collections import OrderedDict, defaultdict
 import torch
-from sklearn.metrics import f1_score, confusion_matrix
+from sklearn.metrics import f1_score, confusion_matrix, cohen_kappa_score
+import matplotlib.pyplot as plt
 
 from .build import EVALUATOR_REGISTRY
 
@@ -74,18 +75,21 @@ class Classification(EvaluatorBase):
             average="macro",
             labels=np.unique(self._y_true)
         )
+        kappa = cohen_kappa_score(self._y_true, self._y_pred)
+        kappa_100 = 100.0 * kappa
 
         # The first value will be returned by trainer.test()
         results["accuracy"] = acc
         results["error_rate"] = err
         results["macro_f1"] = macro_f1
+        results["kappa"] = kappa_100
 
         print(
             "=> result\n"
             f"* total: {self._total:,}\n"
             f"* correct: {self._correct:,}\n"
             f"* accuracy: {acc:.1f}%\n"
-            f"* error: {err:.1f}%\n"
+            f"* kappa: {kappa_100:.2f}%\n"
             f"* macro_f1: {macro_f1:.1f}%"
         )
 
@@ -114,12 +118,28 @@ class Classification(EvaluatorBase):
 
             results["perclass_accuracy"] = mean_acc
 
-        if self.cfg.TEST.COMPUTE_CMAT:
+        if self.cfg.TEST.COMPUTE_CMAT and self.cfg.EVAL_ONLY:
             cmat = confusion_matrix(
                 self._y_true, self._y_pred, normalize="true"
             )
             save_path = osp.join(self.cfg.OUTPUT_DIR, "cmat.pt")
             torch.save(cmat, save_path)
             print(f"Confusion matrix is saved to {save_path}")
+            
+            # === 新增：同时保存一张混淆矩阵热力图 ===
+            try:
+                fig, ax = plt.subplots(figsize=(8, 8))
+                im = ax.imshow(cmat, interpolation="nearest", cmap="viridis")
+                fig.colorbar(im, ax=ax)
+                ax.set_xlabel("Predicted label")
+                ax.set_ylabel("True label")
+                ax.set_title("Normalized confusion matrix")
+                fig.tight_layout()
+                fig_path = osp.join(self.cfg.OUTPUT_DIR, "cmat.png")
+                plt.savefig(fig_path, dpi=300)
+                plt.close(fig)
+                print(f"Confusion matrix figure is saved to {fig_path}")
+            except Exception as e:
+                print(f"Failed to save confusion matrix figure: {e}")
 
         return results

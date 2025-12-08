@@ -12,20 +12,23 @@ output_order=(
     "base2new,base,mlrsnet"
     "base2new,base,resisc45"
     "base2new,base,rsicd"
-    # "base2new,new,patternnet"
-    # "base2new,new,mlrsnet"
-    # "base2new,new,resisc45"
-    # "base2new,new,rsicd"
-    "crossdata,source,patternnet"
+    "base2new,new,patternnet"
+    "base2new,new,mlrsnet"
+    "base2new,new,resisc45"
+    "base2new,new,rsicd"
+    # "crossdata,source,patternnet"
     # "crossdata,target,rsicd"
     # "crossdata,target,resisc45"
     # "crossdata,target,mlrsnet"
     "domaingen,source,patternnetv2"
-    # "domaingen,target,rsicdv2"
-    # "domaingen,target,resisc45v2"
-    # "domaingen,target,mlrsnetv2"
+    "domaingen,target,rsicdv2"
+    "domaingen,target,resisc45v2"
+    "domaingen,target,mlrsnetv2"
 )
 
+# 原始任务列表
+base_tasks=("domaingen" "base2new_patternnet" "base2new_mlrsnet" "base2new_resisc45" "base2new_rsicd")
+vis_models=("patternnetv2" "patternnet" "mlrsnet" "resisc45" "rsicd")
 
 monitor_logfile() {
     local task_type=$1
@@ -132,19 +135,19 @@ log_to_csv() {
     # 获取最后 7 行日志（根据实际情况可以调整行数）
     last_lines=$(tail -n 7 $log_file)
 
-    # 使用 grep 提取 accuracy, error 和 macro_f1
+    # 使用 grep 提取 accuracy, kappa 和 macro_f1
     accuracy=$(echo "$last_lines" | grep -oP 'accuracy: \K[0-9]+\.[0-9]+' | tail -n 1)
-    error=$(echo "$last_lines" | grep -oP 'error: \K[0-9]+\.[0-9]+' | tail -n 1)
+    kappa=$(echo "$last_lines" | grep -oP 'kappa: \K[0-9]+\.[0-9]+' | tail -n 1)
     macro_f1=$(echo "$last_lines" | grep -oP 'macro_f1: \K[0-9]+\.[0-9]+' | tail -n 1)
 
     # 如果没有提取到数据，给出错误提示
-    if [ -z "$accuracy" ] || [ -z "$error" ] || [ -z "$macro_f1" ]; then
-        echo "Error: Missing accuracy, error, or macro_f1 in the last log entries."
+    if [ -z "$accuracy" ] || [ -z "$kappa" ] || [ -z "$macro_f1" ]; then
+        echo "Error: Missing accuracy, kappa, or macro_f1 in the last log entries."
         exit 1
     fi
 
     # 将数据写入CSV文件
-    echo "$total_type,$type,$model,$run,$accuracy,$error,$macro_f1" >> $RESULT_CSV_FILE
+    echo "$total_type,$type,$model,$run,$accuracy,$kappa,$macro_f1" >> $RESULT_CSV_FILE
 }
 
 # 执行 base2new 部分
@@ -506,8 +509,6 @@ wait_with_logging() {
 
 # 调度函数
 scheduler() {
-    # 原始任务列表
-    base_tasks=("crossdata" "domaingen" "base2new_patternnet" "base2new_mlrsnet" "base2new_resisc45" "base2new_rsicd")
     # 最大同时运行任务数
     running_pids=()
 
@@ -602,26 +603,26 @@ scheduler() {
 average() {
     # 初始化总和和计数器
     declare -A total_accuracy
-    declare -A total_error
+    declare -A total_kappa
     declare -A total_macro_f1
     declare -A count
 
     # 计算每个组合（total_type, type, model）对应的总和和计数
-    while IFS=',' read -r total_type type model run accuracy error macro_f1; do
+    while IFS=',' read -r total_type type model run accuracy kappa macro_f1; do
         # 确保 run 在指定的区间内
         if [[ $run -ge $START_RUN && $run -le $END_RUN ]]; then
             # 用字符串键（total_type, type, model）进行分组
             key="${total_type},${type},${model}"
 
             # 检查数据是否为有效数字
-            if [[ ! "$accuracy" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ ! "$error" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ ! "$macro_f1" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-                echo "Skipping invalid line: $total_type,$type,$model,$run,$accuracy,$error,$macro_f1"
+            if [[ ! "$accuracy" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ ! "$kappa" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ ! "$macro_f1" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+                echo "Skipping invalid line: $total_type,$type,$model,$run,$accuracy,$kappa,$macro_f1"
                 continue
             fi
 
             # 累加每个组合的总和和计数
             total_accuracy["$key"]=$(echo "${total_accuracy[$key]:-0} + $accuracy" | bc)
-            total_error["$key"]=$(echo "${total_error[$key]:-0} + $error" | bc)
+            total_kappa["$key"]=$(echo "${total_kappa[$key]:-0} + $kappa" | bc)
             total_macro_f1["$key"]=$(echo "${total_macro_f1[$key]:-0} + $macro_f1" | bc)
             count["$key"]=$((count["$key"] + 1))
         fi
@@ -630,17 +631,17 @@ average() {
     # 将每个组合的平均值按顺序写入到平均值文件
     for key in "${output_order[@]}"; do
         accuracy_sum=${total_accuracy["$key"]}
-        error_sum=${total_error["$key"]}
+        kappa_sum=${total_kappa["$key"]}
         macro_f1_sum=${total_macro_f1["$key"]}
         num_entries=${count["$key"]}
 
         # 计算平均值
         avg_accuracy=$(echo "scale=2; $accuracy_sum / $num_entries" | bc)
-        avg_error=$(echo "scale=2; $error_sum / $num_entries" | bc)
+        avg_kappa=$(echo "scale=2; $kappa_sum / $num_entries" | bc)
         avg_macro_f1=$(echo "scale=2; $macro_f1_sum / $num_entries" | bc)
 
         # 将结果输出到平均值文件
-        echo "$key,$avg_accuracy,$avg_error,$avg_macro_f1" >> $AVERAGE_CSV_FILE
+        echo "$key,$avg_accuracy,$avg_kappa,$avg_macro_f1" >> $AVERAGE_CSV_FILE
     done
 }
 
@@ -678,5 +679,25 @@ clear  # 清屏
 # 输出平均值到 CSV 文件
 average
 
-echo "平均值计算完毕，可随时关闭输出日志..."
+
+echo "平均值计算完毕，开始生成可视化（t-SNE & Grad-CAM）..."
+
+# === 新增：对本次所有 base_tasks 进行可视化 ===
+for seed in $(seq $START_RUN $END_RUN); do
+    for i in "${!base_tasks[@]}"; do
+        task_name="${base_tasks[$i]}"
+        model_name="${vis_models[$i]}"
+
+        echo "为任务 ${task_name} (模型: ${model_name}, seed: ${seed}) 生成可视化..."
+
+        # t-SNE 可视化
+        bash vis_tsne.sh "$model_name" "$seed"
+
+        # Grad-CAM 可视化
+        bash vis_gradcam.sh "$model_name" "$seed"
+    done
+done
+
+echo "所有可视化任务完成，脚本结束。"
+
 

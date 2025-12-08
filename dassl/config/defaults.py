@@ -205,7 +205,7 @@ _C.TEST.EVALUATOR = "Classification"
 _C.TEST.PER_CLASS_RESULT = False
 # Compute confusion matrix, which will be saved
 # to $OUTPUT_DIR/cmat.pt
-_C.TEST.COMPUTE_CMAT = False
+_C.TEST.COMPUTE_CMAT = True
 # If NO_TEST=True, no testing will be conducted
 _C.TEST.NO_TEST = False
 # Use test or val set for FINAL evaluation

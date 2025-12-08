@@ -412,7 +412,7 @@ class AppleNet(TrainerX):
                                 self.cfg.TRAIN.CHECKPOINT_FREQ > 0 else False)
 
         if do_test:
-            curr_result = self.test()
+            curr_result = self.test(split="eval")
             is_best = curr_result > self.best_result
             if is_best:
                 self.best_result = curr_result
@@ -468,7 +468,15 @@ class AppleNet(TrainerX):
         if split is None:
             split = self.cfg.TEST.SPLIT
 
-        data_loader = self.test_loader
+        if split == "eval":
+            self.set_model_mode("eval")
+            data_loader = self.val_loader
+        else:
+            self.set_model_mode("test")
+            data_loader = self.test_loader
+
+
+        self.evaluator.reset()
 
         print(f"Evaluate on the *{split}* set")
 

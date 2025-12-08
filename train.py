@@ -66,6 +66,11 @@ def reset_cfg(cfg, args):
 	if args.head:
 		cfg.MODEL.HEAD.NAME = args.head
 
+	if args.eval_only:
+		cfg.EVAL_ONLY = True
+	else:
+		cfg.EVAL_ONLY = False
+		
 
 def extend_cfg(cfg):
 	"""

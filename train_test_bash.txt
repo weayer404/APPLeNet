@@ -1,0 +1,55 @@
+bash base2new_train.sh patternnet 1
+bash base2new_train.sh mlrsnet 1
+bash base2new_train.sh resisc45 1
+bash base2new_train.sh rsicd 1
+
+bash base2new_test.sh patternnet 1
+bash base2new_test.sh mlrsnet 1  
+bash base2new_test.sh resisc45 1
+bash base2new_test.sh rsicd 1
+
+bash crossdata_train.sh patternnet 1
+
+bash crossdata_test.sh rsicd 1
+bash crossdata_test.sh resisc45 1
+bash crossdata_test.sh mlrsnet 1
+
+bash domaingen_train.sh patternnetv2 1
+
+bash domaingen_test.sh rsicdv2 1
+bash domaingen_test.sh resisc45v2 1
+bash domaingen_test.sh mlrsnetv2 1
+
+bash vis_tsne.sh patternnet 1
+bash vis_gradcam.sh patternnet 1
+
+(ubuntu20.04)
+conda create -n mpple python=3.8
+conda install pytorch torchvision torchaudio pytorch-cuda=12.4 -c pytorch -c nvidia
+conda env update --file environment_pure.yml 
+pip install gdown wilds ftfy regex
+
+(run)
+export CUDA_VISIBLE_DEVICES=0
+nohup bash run_all_average_applenet.sh > ~/files/log_all_applenet.txt 2>&1 &
+查看脚本输出：
+tail -f ~/files/log_all_applenet.txt
+查看训练进度：
+cat ../outputs/log_1001_1010.txt
+终止后台进程：
+pkill -f run_all_average_applenet.sh
+pkill -u $USER -f python
+
+ps aux | grep run_all_average_applenet.sh
+kill <PID>
+
+(delete trash)
+find .. -type f -name "*.Identifier" -exec rm -rf {} +
+find ../Data  -type d -name "shots" -exec rm -rf {} +
+find . -type d -name "seed1[1-2][0-9][0-9]" -exec rm -rf {} +
+find . -type d -name "shots_8" -exec rm -rf {} +
+find ../outputs -type d -name "vit_b16_c4" -exec rm -rf {} +
+find ../outputs -type d -name "vit_b16_c4_shots16" -exec rm -rf {} +
+
+
+

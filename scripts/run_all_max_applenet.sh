@@ -36,15 +36,15 @@ max_value() {
     # 初始化一个关联数组来保存每个组合的最大准确率对应的行数据
     declare -A max_accuracy_line
 
-    while IFS=',' read -r total_type type model run accuracy error macro_f1; do
+    while IFS=',' read -r total_type type model run accuracy kappa macro_f1; do
         # 确保 run 在指定的区间内
         if [[ $run -ge $START_RUN && $run -le $END_RUN ]]; then
             # 用字符串键（total_type, type, model）进行分组
             key="${total_type},${type},${model}"
 
             # 检查数据是否为有效数字
-            if [[ ! "$accuracy" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ ! "$error" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ ! "$macro_f1" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-                echo "Skipping invalid line: $total_type,$type,$model,$run,$accuracy,$error,$macro_f1"
+            if [[ ! "$accuracy" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ ! "$kappa" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ ! "$macro_f1" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+                echo "Skipping invalid line: $total_type,$type,$model,$run,$accuracy,$kappa,$macro_f1"
                 continue
             fi
 
@@ -59,7 +59,7 @@ max_value() {
             # 如果当前准确率是最大值，则更新最大准确率对应的行
             if [[ "$max_accuracy" == "$accuracy" ]]; then
                 # 更新对应组合的最大准确率的行（包括run）
-                max_accuracy_line["$key"]="$accuracy,$error,$macro_f1,$run,$total_type,$type,$model"
+                max_accuracy_line["$key"]="$accuracy,$kappa,$macro_f1,$run,$total_type,$type,$model"
             fi
         fi
     done < $RESULT_SUMMARY_FILE

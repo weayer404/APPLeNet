@@ -50,7 +50,7 @@ map_task_info() {
 extract_metrics_from_log() {
     local content="$1"
     acc=$(echo "$content" | grep -E "\* accuracy:" | tail -n1 | awk -F': ' '{print $2}' | tr -d '%')
-    err=$(echo "$content" | grep -E "\* error:" | tail -n1 | awk -F': ' '{print $2}' | tr -d '%')
+    err=$(echo "$content" | grep -E "\* kappa:" | tail -n1 | awk -F': ' '{print $2}' | tr -d '%')
     f1=$(echo "$content" | grep -E "\* macro_f1:" | tail -n1 | awk -F': ' '{print $2}' | tr -d '%')
 }
 
