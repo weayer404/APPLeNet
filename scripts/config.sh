@@ -11,15 +11,15 @@ END_RUN=2
 MAX_TASK_NUM=3
 CUDA_MEMORY=2500
 OUTPUT_BASE="../outputs"
-OUTPUT_LOG_FILE="${OUTPUT_BASE}/log_${CFG}_${START_RUN}_${END_RUN}.txt"
-RESULT_CSV_FILE="${OUTPUT_BASE}/results_${CFG}_${START_RUN}_${END_RUN}.csv"
-AVERAGE_CSV_FILE="${OUTPUT_BASE}/averages_${CFG}_${START_RUN}_${END_RUN}.csv"
+OUTPUT_LOG_FILE="${OUTPUT_BASE}/log_${TRAINER}_${CFG}_${SHOTS}_${START_RUN}_${END_RUN}.txt"
+RESULT_CSV_FILE="${OUTPUT_BASE}/results_${TRAINER}_${CFG}_${SHOTS}_${START_RUN}_${END_RUN}.csv"
+AVERAGE_CSV_FILE="${OUTPUT_BASE}/averages_${TRAINER}_${CFG}_${SHOTS}_${START_RUN}_${END_RUN}.csv"
 
-PLUS_AVG_CSV_FILE="${OUTPUT_BASE}/plus_avg_${CFG}_${START_RUN}_${END_RUN}.csv" # 加权平均值
+PLUS_AVG_CSV_FILE="${OUTPUT_BASE}/plus_avg_${TRAINER}_${CFG}_${SHOTS}_${START_RUN}_${END_RUN}.csv" # 加权平均值
 
-MAX_CSV_FILE="${OUTPUT_BASE}/max_${CFG}_${START_RUN}_${END_RUN}.csv" # 最大值
+MAX_CSV_FILE="${OUTPUT_BASE}/max_${TRAINER}_${CFG}_${SHOTS}_${START_RUN}_${END_RUN}.csv" # 最大值
 
-RESULT_SUMMARY_FILE="${OUTPUT_BASE}/result_summary_${CFG}_${START_RUN}_${END_RUN}.csv"
+RESULT_SUMMARY_FILE="${OUTPUT_BASE}/result_summary_${TRAINER}_${CFG}_${SHOTS}_${START_RUN}_${END_RUN}.csv"
 ################################ 运行脚本 ###############################
 # nohup bash run_all_average_applenet.sh > ~/files/log_all_applenet.txt 2>&1 &
 ############################## 查看脚本输出 #############################
