@@ -3,12 +3,12 @@
 # config.sh
 DATA=/home/koko/code/APPLeNet/Data
 TRAINER=AppleNet
-CFG=vit_b32_c4 # vit_b16_c4 vit_b16_c8 vit_b16_c12 vit_b16_c16 vit_b32_c4
+CFG=vit_b16_c4 # vit_b16_c4 vit_b16_c8 vit_b16_c12 vit_b16_c16 vit_b32_c4
 SHOTS=16
 EPOCH=100
 START_RUN=0
-END_RUN=4
-MAX_TASK_NUM=5
+END_RUN=2
+MAX_TASK_NUM=3
 CUDA_MEMORY=2500
 OUTPUT_BASE="../outputs"
 OUTPUT_LOG_FILE="${OUTPUT_BASE}/log_${CFG}_${START_RUN}_${END_RUN}.txt"
