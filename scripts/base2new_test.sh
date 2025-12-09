@@ -9,7 +9,7 @@ DATASET=$1
 SEED=$2
 
 # LOADEP=30
-SUB=new 
+SUB=all 
 
 # --load-epoch ${LOADEP} \
 

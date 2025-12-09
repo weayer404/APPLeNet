@@ -8,7 +8,7 @@ cd ..
 DATASET=$1
 SEED=$2
 
-SUB=base
+SUB=all
 NCTX=4  # number of context tokens
 
 
