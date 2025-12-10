@@ -336,6 +336,15 @@ class AppleLoss(_Loss):
         return total_loss
 
 
+def count_params_by_module(model):
+    print("\n=== Parameter Statistics ===")
+    for name, module in model.named_children():
+        total = sum(p.numel() for p in module.parameters())
+        trainable = sum(p.numel() for p in module.parameters() if p.requires_grad)
+        print(f"{name:20s} | total: {total/1e6:.3f}M | trainable: {trainable/1e6:.3f}M")
+
+
+
 @TRAINER_REGISTRY.register()
 class AppleNet(TrainerX):
     def check_cfg(self, cfg):
@@ -392,6 +401,10 @@ class AppleNet(TrainerX):
             self.criterion = AppleLoss(T=cfg.LOSS.T)
         else:
             raise NotImplementedError
+        
+        
+        print("\n[MODEL PARAMETER REPORT]")
+        count_params_by_module(self.model)
 
     def forward_backward(self, batch):
         image, label = self.parse_batch_train(batch)
