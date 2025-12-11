@@ -27,7 +27,8 @@ bash vis_gradcam.sh patternnet 1
 conda create -n mpple python=3.8
 conda install pytorch torchvision torchaudio pytorch-cuda=12.4 -c pytorch -c nvidia
 conda env update --file environment_pure.yml 
-pip install gdown wilds ftfy regex
+conda install matplotlib
+pip install gdown wilds ftfy regex grad-cam opencv-python opencv-contrib-python
 
 (run)
 export CUDA_VISIBLE_DEVICES=0

@@ -17,7 +17,7 @@ SUB=all
 COMMON_DIR=${DATASET}/shots_${SHOTS}/${TRAINER}/${CFG}/seed${SEED}
 
 MODEL_DIR=outputs/base2new/train_base/${COMMON_DIR}
-DIR=outputs/base2new/test_${SUB}/${COMMON_DIR}
+DIR=outputs/base2new/test_new/${COMMON_DIR}
 if [ -d "$DIR" ]; then
     echo "The results already exist in ${DIR}"
 else
