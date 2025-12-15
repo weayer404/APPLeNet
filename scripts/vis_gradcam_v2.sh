@@ -21,7 +21,7 @@ python visual/vis_gradcam.py \
 --config-file yaml/trainers/${TRAINER}/${CFG}.yaml \
 --output-dir ${DIR} \
 --model-dir outputs/domain_generalization/patternnetv2/${TRAINER}/${CFG}_shots${SHOTS}/seed${SEED} \
---num-images 38 \
+--num-images 3 \
 --target-layer "conv1" \
 --eval-only \
 DATASET.NUM_SHOTS ${SHOTS} \

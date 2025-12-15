@@ -29,7 +29,7 @@ DIR=outputs/base2new/test_new/${COMMON_DIR}
     --config-file yaml/trainers/${TRAINER}/${CFG}.yaml \
     --output-dir ${DIR} \
     --model-dir ${MODEL_DIR} \
-    --num-images 38 \
+    --num-images 3 \
     --target-layer "conv1" \
     --eval-only \
     DATASET.NUM_SHOTS ${SHOTS} \

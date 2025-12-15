@@ -7,6 +7,7 @@ import torch
 import numpy as np
 import cv2
 
+from collections import defaultdict
 from types import SimpleNamespace
 
 
@@ -80,6 +81,19 @@ def tensor_to_rgb(img_tensor: torch.Tensor):
     img = img / (img.max() + 1e-6)
     return img
 
+def clean_gradcam_folder(output_dir):
+    """
+    删除输出文件夹中之前生成的 Grad-CAM 图片
+    仅删除符合命名规则的 .png 文件
+    """
+    if os.path.exists(output_dir):
+        # 获取所有符合 gradcam_idxX_labelY.png 命名规则的 .png 文件
+        files = [f for f in os.listdir(output_dir) if f.startswith('gradcam_idx') and f.endswith('.png')]
+        for file in files:
+            os.remove(os.path.join(output_dir, file))
+            print(f"Deleted: {file}")
+    else:
+        print(f"Output directory {output_dir} does not exist.")
 
 
 
@@ -140,51 +154,67 @@ def main(args):
         reshape_transform=None    #clip_vit_reshape_transform
     )
 
-    # 从 test_loader 里取一批图片
+    
+    # 获取完整的测试集
     data_loader = trainer.dm.test_loader
-    batch = next(iter(data_loader))
-    images = batch["img"].to(device)
-    images.requires_grad_(True)   # ⭐ 让输入也成为叶子结点，确保有梯度流
-    labels = batch["label"].to(device)
 
+    # 记录每个类别已可视化图片的数量
+    class_counts = defaultdict(int)
+    
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
+    clean_gradcam_folder(cfg.OUTPUT_DIR)
 
-    # 只画前 N 张，避免太慢
-    num_to_vis = min(args.num_images, images.size(0))
-    print(f"Generating Grad-CAM for {num_to_vis} images ...")
+    # 只画每个类前 N 张图片，避免内存溢出
+    num_per_class = args.num_images  # 每个类别需要展示的图像数
 
-    for i in range(num_to_vis):
-        img_tensor = images[i]
-        label = int(labels[i].item())
+    # 逐批次处理，每个 batch 里处理并更新
+    print(f"Generating Grad-CAM for {num_per_class} images per class ...")
 
-        # 原图（0~1）
-        rgb_img = tensor_to_rgb(img_tensor)
+    for batch in data_loader:
+        images = batch["img"].to(device)
+        images.requires_grad_(True)
+        labels = batch["label"].to(device)
 
-        # Grad-CAM 目标类别：默认用 GT label，你也可以改用预测类别
-        targets = [ClassifierOutputTarget(label)]
+        for i in range(images.size(0)):
+            img_tensor = images[i]
+            label = int(labels[i].item())
 
-        # cam() 会自动调用 cam_model.forward(x)
-        grayscale_cam = cam(
-            input_tensor=img_tensor.unsqueeze(0),
-            targets=targets
-        )[0]  # H x W, 0~1
+            # 每个类只可视化前 N 张图片
+            if class_counts[label] >= num_per_class:
+                continue
 
-        visualization = show_cam_on_image(
-            rgb_img,
-            grayscale_cam,
-            use_rgb=True
-        )
+            # 累加该类的已可视化图片数
+            class_counts[label] += 1
 
-        # 保存成 BGR 格式给 cv2
-        save_path = os.path.join(
-            cfg.OUTPUT_DIR,
-            f"gradcam_idx{i}_label{label}.png"
-        )
-        cv2.imwrite(
-            save_path,
-            cv2.cvtColor(visualization, cv2.COLOR_RGB2BGR)
-        )
-        print(f"Saved: {save_path}")
+            # 原图（0~1）
+            rgb_img = tensor_to_rgb(img_tensor)
+
+            # Grad-CAM 目标类别：默认用 GT label，你也可以改用预测类别
+            targets = [ClassifierOutputTarget(label)]
+
+            # cam() 会自动调用 cam_model.forward(x)
+            grayscale_cam = cam(
+                input_tensor=img_tensor.unsqueeze(0),
+                targets=targets
+            )[0]  # H x W, 0~1
+
+            visualization = show_cam_on_image(
+                rgb_img,
+                grayscale_cam,
+                use_rgb=True
+            )
+
+            # 保存成 BGR 格式给 cv2
+            save_path = os.path.join(
+                cfg.OUTPUT_DIR,
+                f"gradcam_idx{i}_label{label}.png"
+            )
+            cv2.imwrite(
+                save_path,
+                cv2.cvtColor(visualization, cv2.COLOR_RGB2BGR)
+            )
+            print(f"Saved: {save_path}")
+
 
 
 if __name__ == "__main__":
