@@ -1,16 +1,16 @@
 #!/bin/bash
 
+# custom config
 source config.sh 
 cd ..
 
-# custom config
-
-DATASET=$1
-SEED=$2
-
-SUB=all
-NCTX=4  # number of context tokens
-
+DATASET=${1:-$DATASET}
+SEED=${2:-$SEED}
+SHOTS=${3:-$SHOTS}
+TRAINER=${4:-$TRAINER}
+CFG=${5:-$CFG}
+SUB=${6:-$SUB}
+DOMAIN=${7:-0}
 
 DIR=outputs/base2new/train_base/${DATASET}/shots_${SHOTS}/${TRAINER}/${CFG}/seed${SEED}
 
@@ -24,6 +24,7 @@ else
     --dataset-config-file yaml/datasets/${DATASET}.yaml \
     --config-file yaml/trainers/${TRAINER}/${CFG}.yaml \
     --output-dir ${DIR} \
+    --domain ${DOMAIN} \
     DATASET.NUM_SHOTS ${SHOTS} \
     DATASET.SUBSAMPLE_CLASSES ${SUB} 
 fi  

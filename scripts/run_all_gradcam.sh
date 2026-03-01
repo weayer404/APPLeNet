@@ -9,6 +9,9 @@ run_photo_v2=("domaingen" "domaingen" "domaingen" )
 vis_models_v1=("patternnet" "mlrsnet" "resisc45" "rsicd")
 vis_models_v2=("mlrsnetv2" "resisc45v2" "rsicdv2")
 
+echo "平均值计算完毕，开始生成可视化（t-SNE & Grad-CAM）..."
+mkdir -p "$(dirname "$VIS_LOG_FILE")"
+
 # === 新增：对本次所有 run_order 进行可视化 ===
 for seed in $(seq $START_RUN $END_RUN); do
     for i in "${!run_photo_v1[@]}"; do
@@ -17,8 +20,11 @@ for seed in $(seq $START_RUN $END_RUN); do
 
         echo "为任务 ${task_name} (模型: ${model_name}, seed: ${seed}) 生成可视化..."
 
+        # t-SNE 可视化
+        bash vis_tsne.sh "$model_name" "$seed" >>"$VIS_LOG_FILE" 2>&1
+
         # Grad-CAM 可视化
-        bash vis_gradcam.sh "$model_name" "$seed"
+        bash vis_gradcam.sh "$model_name" "$seed" >>"$VIS_LOG_FILE" 2>&1
     done
 done
 for seed in $(seq $START_RUN $END_RUN); do
@@ -28,8 +34,11 @@ for seed in $(seq $START_RUN $END_RUN); do
 
         echo "为任务 ${task_name} (模型: ${model_name}, seed: ${seed}) 生成可视化..."
 
+        # t-SNE 可视化
+        bash vis_tsne_v2.sh "$model_name" "$seed" >>"$VIS_LOG_FILE" 2>&1
+
         # Grad-CAM 可视化
-        bash vis_gradcam_v2.sh "$model_name" "$seed"
+        bash vis_gradcam_v2.sh "$model_name" "$seed" >>"$VIS_LOG_FILE" 2>&1
     done
 done
 

@@ -1,18 +1,20 @@
 #!/bin/bash
 
+# custom config
 source config.sh 
 cd ..
 
-# custom config
-
-DATASET=$1
-SEED=$2
+DATASET=${1:-$DATASET}
+SEED=${2:-$SEED}
+SHOTS=${3:-$SHOTS}
+TRAINER=${4:-$TRAINER}
+CFG=${5:-$CFG}
+SUB=${6:-$SUB}
+DOMAIN=${7:-0}
 
 # LOADEP=30
-SUB=all 
 
 # --load-epoch ${LOADEP} \
-
 
 COMMON_DIR=${DATASET}/shots_${SHOTS}/${TRAINER}/${CFG}/seed${SEED}
 
@@ -28,6 +30,7 @@ else
     --dataset-config-file yaml/datasets/${DATASET}.yaml \
     --config-file yaml/trainers/${TRAINER}/${CFG}.yaml \
     --output-dir ${DIR} \
+    --domain ${DOMAIN} \
     --model-dir ${MODEL_DIR} \
     --eval-only \
     DATASET.NUM_SHOTS ${SHOTS} \
