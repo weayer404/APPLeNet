@@ -21,7 +21,9 @@ bash domaingen_test.sh resisc45v2 1
 bash domaingen_test.sh mlrsnetv2 1
 
 bash vis_tsne.sh patternnet 1
+bash vis_tsne_v2.sh rsicdv2 1
 bash vis_gradcam.sh patternnet 1
+bash vis_gradcam_v2.sh rsicdv2 1
 
 (ubuntu20.04)
 conda create -n mpple python=3.8
@@ -32,25 +34,23 @@ pip install gdown wilds ftfy regex grad-cam opencv-python opencv-contrib-python
 
 (run)
 export CUDA_VISIBLE_DEVICES=0
-nohup bash run_all_average_applenet.sh > ~/files/log_all_applenet.txt 2>&1 &
-查看脚本输出：
-tail -f ~/files/log_all_applenet.txt
-查看训练进度：
-cat ../outputs/log_1001_1010.txt
-终止后台进程：
-pkill -f run_all_average_applenet.sh
-pkill -u $USER -f python
+touch ../log_all_output.log && nohup bash run_single_average_test.sh > ../log_all_output.log 2>&1 &
 
-ps aux | grep run_all_average_applenet.sh
+查看脚本输出：
+tail -f ../log_all_output.log
+终止后台进程：
+pkill -f 'run_single_average_test\.sh' && pkill -u "$USER" -f 'python'
+pkill -u $USER -f python
+ps aux | grep run_single_average_test.sh
 kill <PID>
 
 (delete trash)
 find .. -type f -name "*.Identifier" -exec rm -rf {} +
-find ../Data  -type d -name "shots" -exec rm -rf {} +
-find . -type d -name "seed1[1-2][0-9][0-9]" -exec rm -rf {} +
-find . -type d -name "shots_8" -exec rm -rf {} +
+find ../../Data  -type d -name "shots" -exec rm -rf {} +
+find ../../Data  -type d -name "fewshot_nested_splits" -exec rm -rf {} +
+find ../outputs -type d -name "seed1[1-2][0-9][0-9]" -exec rm -rf {} +
+find ../outputs -type d -name "shots_8" -exec rm -rf {} +
 find ../outputs -type d -name "vit_b16_c4" -exec rm -rf {} +
 find ../outputs -type d -name "vit_b16_c4_shots16" -exec rm -rf {} +
-
 
 
