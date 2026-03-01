@@ -178,6 +178,12 @@ if __name__ == "__main__":
 		"--target-domains", type=str, nargs="+", help="target domains for DA/DG"
 	)
 	parser.add_argument(
+		"--domain",
+		type=int,
+		default=0,
+		help="cross-domain flag: 1 for cross-domain, 0 for same-domain"
+	)
+	parser.add_argument(
 		"--transforms", type=str, nargs="+", help="data augmentation methods"
 	)
 	parser.add_argument(
