@@ -1,6 +1,6 @@
 DATALOADER:
   TRAIN_X:
-    BATCH_SIZE: 1
+    BATCH_SIZE: 4
   TEST:
     BATCH_SIZE: 100
   NUM_WORKERS: 8
@@ -31,5 +31,5 @@ MODEL:
 TRAINER:
   APPLENET:
     N_CTX: 8
-    CTX_INIT: ""
+    CTX_INIT: "a photo of a"
     PREC: "fp16"
