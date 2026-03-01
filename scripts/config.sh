@@ -2,7 +2,7 @@
 
 # config.sh
 # ====== 全局信息 ======
-DATA=${DATA:-/home/koko/code/Data}
+DATA=${DATA:-~/code/Data}
 TRAINER=${TRAINER:-AppleNet}
 CFG=${CFG:-vit_b16_c8}         # vit_b16_c4 vit_b32_c4 vit_b16_c16 vit_b32_c16
 SUB=${SUB:-all}  
