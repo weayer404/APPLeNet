@@ -19,6 +19,10 @@ from dassl.optim import build_optimizer, build_lr_scheduler
 
 from clip import clip
 from clip.simple_tokenizer import SimpleTokenizer as _Tokenizer
+import SimpleTokenizer as _Tokenizer
+
+import time
+import datetime
 
 _tokenizer = _Tokenizer()
 import os
@@ -498,7 +502,6 @@ class AppleNet(TrainerX):
             self._models[name].load_state_dict(state_dict, strict=False)
 
     @torch.no_grad()
-
     def test(self, split=None):
         """A generic testing pipeline."""
         self.set_model_mode("eval")
@@ -516,8 +519,11 @@ class AppleNet(TrainerX):
 
 
         self.evaluator.reset()
-
         print(f"Evaluate on the *{split}* set")
+        if split != "eval":
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+            _test_tic = time.perf_counter()
 
         for batch_idx, batch in enumerate(tqdm(data_loader)):
             input, label = self.parse_batch_test(batch)
@@ -529,5 +535,12 @@ class AppleNet(TrainerX):
         for k, v in results.items():
             tag = f"{split}/{k}"
             self.write_scalar(tag, v, self.epoch)
+
+        if split != "eval":
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+            test_time = time.perf_counter() - _test_tic
+            td = datetime.timedelta(seconds=test_time)
+            print(f"* time: {td} ({test_time:.3f}s)")
 
         return list(results.values())[0]
