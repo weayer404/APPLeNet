@@ -10,10 +10,10 @@ CFG=vit_b16_c8
 SHOT_TRIES=3
 START_RUN=1
 END_RUN=3
-# MAX_TASK_NUM=6
 
 # 加载 config（不会覆盖上面已赋值变量）
 source ./config.sh
+MAX_TASK_NUM=6
 
 mkdir -p "$OUTPUT_BASE"
 mkdir -p "$RUNLOG_DIR"
