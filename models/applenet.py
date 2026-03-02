@@ -19,7 +19,6 @@ from dassl.optim import build_optimizer, build_lr_scheduler
 
 from clip import clip
 from clip.simple_tokenizer import SimpleTokenizer as _Tokenizer
-import SimpleTokenizer as _Tokenizer
 
 import time
 import datetime
