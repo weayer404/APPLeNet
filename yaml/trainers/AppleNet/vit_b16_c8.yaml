@@ -13,7 +13,7 @@ INPUT:
   TRANSFORMS: ["random_resized_crop", "random_flip", "normalize"]
 
 OPTIM:
-  NAME: "adamw"
+  NAME: "sgd"
   LR: 3.14e-4
   MAX_EPOCH: 200
   LR_SCHEDULER: "cosine"
