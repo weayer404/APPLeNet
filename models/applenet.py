@@ -519,15 +519,28 @@ class AppleNet(TrainerX):
 
         self.evaluator.reset()
         print(f"Evaluate on the *{split}* set")
-        if split != "eval":
+        measure_time = (split != "eval")
+        if measure_time:
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
             _test_tic = time.perf_counter()
 
+        correct = 0
+        total = 0
+
         for batch_idx, batch in enumerate(tqdm(data_loader)):
             input, label = self.parse_batch_test(batch)
             logits, ctx_shifted, label = self.model_inference(input, label)
+
+            pred = logits.argmax(dim=1)
+            correct += (pred == label).sum().item()
+            total += label.numel()
+
             self.evaluator.process(logits, label)
+
+        if split == "eval":
+            self._last_eval_correct = correct
+            self._last_eval_total = total
 
         results = self.evaluator.evaluate()
 
@@ -535,11 +548,18 @@ class AppleNet(TrainerX):
             tag = f"{split}/{k}"
             self.write_scalar(tag, v, self.epoch)
 
-        if split != "eval":
+        if measure_time:
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
             test_time = time.perf_counter() - _test_tic
             td = datetime.timedelta(seconds=test_time)
+
+            ms_per_img = (test_time * 1000.0 / total) if total > 0 else 0.0
+            img_per_sec = (total / test_time) if test_time > 0 else 0.0
+
+            print(f"* total_images: {total}")
             print(f"* time: {td} ({test_time:.3f}s)")
+            print(f"* time_per_image: {ms_per_img:.3f} ms")
+            print(f"* throughput: {img_per_sec:.3f} img/s")
 
         return list(results.values())[0]
