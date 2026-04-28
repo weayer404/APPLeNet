@@ -43,8 +43,7 @@ LAST_WAIT_RC=0
 # "base2new_patternnet" "base2new_mlrsnet" "base2new_resisc45" "base2new_rsicd"
 # "crossdata_patternnet" "crossdata_mlrsnet" "crossdata_resisc45" "crossdata_rsicd"
 # "domaingen_patternnetv2" "domaingen_mlrsnetv2" "domaingen_resisc45v2" "domaingen_rsicdv2"
-run_order=("base2new_patternnet" "base2new_mlrsnet" "base2new_resisc45" "base2new_rsicd"
-          "domaingen_patternnetv2" "domaingen_mlrsnetv2" "domaingen_resisc45v2" "domaingen_rsicdv2")
+run_order=("base2new_patternnet" )
 # ====== 任务定义（只在这里维护一次）============
 crossdata_source_models=("patternnet")
 crossdata_target_models=("rsicd" "resisc45" "mlrsnet")
