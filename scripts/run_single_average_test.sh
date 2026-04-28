@@ -7,7 +7,7 @@ set -euo pipefail
 # TRAINER=AppleNet 
 CFG=vit_b16_c8 
 # SUB=all
-SHOT_TRIES=3
+SHOT_TRIES=2
 START_RUN=1
 END_RUN=3
 
