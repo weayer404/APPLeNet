@@ -3,3 +3,8 @@ Data/
 *.log
 *.Identifier
 outputs*/
+
+# 本机实验配置，不要提交
+.env
+.env.*
+.env/
