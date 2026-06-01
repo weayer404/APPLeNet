@@ -13,7 +13,7 @@ SUB=${6:-$SUB}
 
 DIR=outputs/domain_generalization/tests/${TRAINER}/${CFG}_shots${SHOTS}/${DATASET}/seed${SEED}
 
-python visual/vis_patternnet_heatmaps.py \
+python visual/vis_gradcam.py \
 --root ${DATA} \
 --seed ${SEED} \
 --trainer ${TRAINER} \
@@ -24,9 +24,5 @@ python visual/vis_patternnet_heatmaps.py \
 --num-images 3 \
 --target-layer "conv1" \
 --eval-only \
---only-cm \         # 只想生成这种分类热力图，不想生成 Grad-CAM
---cm-all-classes \  # 想生成全部 38 类
---cm-class-names "river,bridge,runway,parking_lot,storage_tank,harbor" \   # 指定分类热力图类别
-# --class-names "river,bridge,runway,parking_lot,storage_tank" \           # 指定注意力热力图类别
-DATASET.NUM_SHOTS ${SHOTS} \ 
+DATASET.NUM_SHOTS ${SHOTS} \
 DATASET.SUBSAMPLE_CLASSES ${SUB}

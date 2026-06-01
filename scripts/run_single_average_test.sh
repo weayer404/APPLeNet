@@ -4,16 +4,25 @@ set -euo pipefail
 ############################
 # 0) 基础配置
 ############################
-# TRAINER=AppleNet 
-CFG=vit_b16_c8 
+TRAINER=${TRAINER:-MPPLe}     # MPPLe PromptSRC MaPLe CLIP_Adapter
+CFG=${CFG:-vit_b16_c8}     # vit_b16_c4 vit_b32_c4 vit_b16_c16 vit_b32_c16
 # SUB=all
-SHOT_TRIES=2
-START_RUN=1
-END_RUN=3
+# NCTX=4  # number of context tokens
+SHOT_TRIES=${SHOT_TRIES:-3}
+START_RUN=${START_RUN:-1}
+END_RUN=${END_RUN:-3}
 
-# 加载 config（不会覆盖上面已赋值变量）
-source ./config.sh
-MAX_TASK_NUM=6
+# 加载公共 config；config.sh 内部会自动加载 local_config.sh / .env。
+CONFIG_FILE=${CONFIG_FILE:-./config.sh}
+# shellcheck source=/dev/null
+source "$CONFIG_FILE"
+
+if [[ -n "${LOCAL_CONFIG_FILES_LOADED:-}" ]]; then
+  echo "[CONFIG] local overrides loaded: ${LOCAL_CONFIG_FILES_LOADED}"
+fi
+
+# MAX_TASK_NUM 由 config.sh、local_config.sh、.env 或环境变量控制；如需单任务运行，可用 MAX_TASK_NUM=1 bash run_single_average_test.sh
+MAX_TASK_NUM=${MAX_TASK_NUM:-1}
 
 mkdir -p "$OUTPUT_BASE"
 mkdir -p "$RUNLOG_DIR"
@@ -43,7 +52,19 @@ LAST_WAIT_RC=0
 # "base2new_patternnet" "base2new_mlrsnet" "base2new_resisc45" "base2new_rsicd"
 # "crossdata_patternnet" "crossdata_mlrsnet" "crossdata_resisc45" "crossdata_rsicd"
 # "domaingen_patternnetv2" "domaingen_mlrsnetv2" "domaingen_resisc45v2" "domaingen_rsicdv2"
-run_order=("base2new_patternnet" )
+default_run_order=("base2new_patternnet" "base2new_mlrsnet" "base2new_resisc45" "base2new_rsicd"
+          "domaingen_patternnetv2" "domaingen_mlrsnetv2" "domaingen_resisc45v2" "domaingen_rsicdv2")
+
+# 本地覆盖运行清单：
+# 1) local_config.sh: RUN_ORDER=("base2new_rsicd" "domaingen_patternnetv2" "domaingen_rsicdv2")
+# 2) .env: RUN_ORDER_STR="base2new_rsicd domaingen_patternnetv2 domaingen_rsicdv2"
+if declare -p RUN_ORDER >/dev/null 2>&1; then
+  run_order=("${RUN_ORDER[@]}")
+elif [[ -n "${RUN_ORDER_STR:-}" ]]; then
+  read -r -a run_order <<< "$RUN_ORDER_STR"
+else
+  run_order=("${default_run_order[@]}")
+fi
 # ====== 任务定义（只在这里维护一次）============
 crossdata_source_models=("patternnet")
 crossdata_target_models=("rsicd" "resisc45" "mlrsnet")
@@ -93,7 +114,7 @@ build_plan_from_tokens() {
 
     if [[ "$t" == crossdata_* ]]; then
       name="${t#crossdata_}"
-      (( seen_cross==0 )) && { add_unique run_order_exec "crossdata"; seen_cross=1; }
+      seen_cross=1
 
       if in_list "$name" "${crossdata_source_models[@]}"; then
         add_unique crossdata_sources_enabled "$name"
@@ -107,7 +128,7 @@ build_plan_from_tokens() {
 
     if [[ "$t" == domaingen_* ]]; then
       name="${t#domaingen_}"
-      (( seen_domain==0 )) && { add_unique run_order_exec "domaingen"; seen_domain=1; }
+      seen_domain=1
 
       if in_list "$name" "${domaingen_source_models[@]}"; then
         add_unique domaingen_sources_enabled "$name"
@@ -141,6 +162,29 @@ build_plan_from_tokens() {
   fi
   if (( seen_domain==1 )) && [[ ${#domaingen_targets_enabled[@]} -eq 0 ]]; then
     domaingen_targets_enabled=("${domaingen_target_models[@]}")
+  fi
+
+  ########################################
+  # 自动生成真正调度顺序
+  # 说明：crossdata/domaingen 不再压成一个大任务，而是拆成
+  # source/target + dataset 的独立调度单元，便于按 dataset+shot 画像显存。
+  ########################################
+  if (( seen_cross==1 )); then
+    for s in "${crossdata_sources_enabled[@]}"; do
+      add_unique run_order_exec "crossdata_source_${s}"
+    done
+    for tg in "${crossdata_targets_enabled[@]}"; do
+      add_unique run_order_exec "crossdata_target_${tg}"
+    done
+  fi
+
+  if (( seen_domain==1 )); then
+    for s in "${domaingen_sources_enabled[@]}"; do
+      add_unique run_order_exec "domaingen_source_${s}"
+    done
+    for tg in "${domaingen_targets_enabled[@]}"; do
+      add_unique run_order_exec "domaingen_target_${tg}"
+    done
   fi
 
   ########################################
@@ -276,7 +320,9 @@ else # 2
 fi
 : > "$LOCK_FILE"
 : > "$SCHED_LOG"
-: > "$MEM_PROFILE_FILE"
+if [[ ! -f "$MEM_PROFILE_FILE" ]]; then
+  printf "key\tpeak_mb\test_mb\tts\n" > "$MEM_PROFILE_FILE"
+fi
 lock_end
 
 ############################
@@ -796,6 +842,255 @@ domaingen() {
   return $any_fail
 }
 
+
+############################
+# 6.5) 拆分后的 crossdata / domaingen 任务
+############################
+cd_sigdir_source() { # $1=source $2=shot $3=seed
+  echo "${RUNLOG_DIR}/signals/crossdata/source/${1}/shots_${2}/seed${3}"
+}
+cd_sidfile_source() { echo "$(cd_sigdir_source "$1" "$2" "$3")/train.sid"; }
+cd_donefile_source() { echo "$(cd_sigdir_source "$1" "$2" "$3")/train.done"; }
+cd_failfile_source() { echo "$(cd_sigdir_source "$1" "$2" "$3")/train.fail"; }
+
+dg_sigdir_source() { # $1=source $2=shot $3=seed
+  echo "${RUNLOG_DIR}/signals/domaingen/source/${1}/shots_${2}/seed${3}"
+}
+dg_sidfile_source() { echo "$(dg_sigdir_source "$1" "$2" "$3")/train.sid"; }
+dg_donefile_source() { echo "$(dg_sigdir_source "$1" "$2" "$3")/train.done"; }
+dg_failfile_source() { echo "$(dg_sigdir_source "$1" "$2" "$3")/train.fail"; }
+
+wait_signal_done() { # $1=done_file $2=fail_file $3=sid_file $4=desc
+  local donef="$1" failf="$2" sidf="$3" desc="$4"
+  local timeout="${SOURCE_WAIT_TIMEOUT_SEC:-86400}"
+  local interval="${SOURCE_WAIT_POLL_SEC:-2}"
+  local t0 now pid
+  t0="$(date +%s)"
+  while true; do
+    [[ -f "$donef" ]] && return 0
+    [[ -f "$failf" ]] && return 1
+
+    if [[ -f "$sidf" ]]; then
+      pid="$(cat "$sidf" 2>/dev/null || echo "")"
+      if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+        sleep "$interval"
+      else
+        sleep 0.5
+      fi
+    else
+      sleep "$interval"
+    fi
+
+    now="$(date +%s)"
+    if (( now - t0 >= timeout )); then
+      printf '%s [ERROR] wait source timeout: %s\n' "$(date '+%F %T')" "$desc" >> "$SCHED_LOG"
+      return 124
+    fi
+  done
+}
+
+wait_crossdata_source_done() { # $1=source $2=shot $3=seed
+  wait_signal_done \
+    "$(cd_donefile_source "$1" "$2" "$3")" \
+    "$(cd_failfile_source "$1" "$2" "$3")" \
+    "$(cd_sidfile_source "$1" "$2" "$3")" \
+    "crossdata source=$1 shot=$2 seed=$3"
+}
+
+wait_domaingen_source_done() { # $1=source $2=shot $3=seed
+  wait_signal_done \
+    "$(dg_donefile_source "$1" "$2" "$3")" \
+    "$(dg_failfile_source "$1" "$2" "$3")" \
+    "$(dg_sidfile_source "$1" "$2" "$3")" \
+    "domaingen source=$1 shot=$2 seed=$3"
+}
+
+crossdata_source_one() {
+  local source="$1"
+  local seed="$2"
+  export SHOTS
+
+  local sigdir sidfile status_prefix
+  sigdir="$(cd_sigdir_source "$source" "$SHOTS" "$seed")"
+  mkdir -p "$sigdir"
+  sidfile="$(cd_sidfile_source "$source" "$SHOTS" "$seed")"
+  status_prefix="${sigdir}/train"
+  rm -f "${status_prefix}.done" "${status_prefix}.fail" "$sidfile" 2>/dev/null || true
+
+  local HAS_B2N_PATTERNNET=0
+  if in_list "patternnet" "${base2new_models_enabled[@]}"; then
+    HAS_B2N_PATTERNNET=1
+  fi
+
+  if [[ "$source" == "patternnet" && "$HAS_B2N_PATTERNNET" == "1" ]]; then
+    if ! wait_b2n_train_done "patternnet" "$SHOTS" "$seed"; then
+      printf '%s [ERROR] crossdata reuse failed: base2new_patternnet not ready shot=%s seed=%s\n' \
+        "$(date '+%F %T')" "$SHOTS" "$seed" >> "$SCHED_LOG"
+      : > "${status_prefix}.fail"
+      return 1
+    fi
+
+    local src dst dst_log
+    src="${ROOT_DIR}/outputs/base2new/train_base/patternnet/shots_${SHOTS}/${TRAINER}/${CFG}/seed${seed}"
+    dst="${ROOT_DIR}/outputs/crosstransfer/patternnet/${TRAINER}/${CFG}_shots${SHOTS}/seed${seed}"
+    dst_log="${dst}/log.txt"
+
+    if [[ ! -d "$src" ]]; then
+      printf '%s [ERROR] crossdata reuse failed: src not found: %s\n' \
+        "$(date '+%F %T')" "$src" >> "$SCHED_LOG"
+      : > "${status_prefix}.fail"
+      return 1
+    fi
+
+    ensure_symlink_modeldir "$src" "$dst"
+    log_to_csv "crossdata" "source" "$source" "$seed" "$dst_log" || true
+    echo "$$" > "$sidfile" 2>/dev/null || true
+    : > "${status_prefix}.done"
+    return 0
+  fi
+
+  local log_train="${RUNLOG_DIR}/crosstransfer/${source}/${TRAINER}/${CFG}_shots${SHOTS}/seed${seed}/log.txt"
+  EXPORT_SID_FILE="$sidfile" EXPORT_STATUS_PREFIX="$status_prefix" \
+  run_and_monitor "crossdata" "source" "$source" "$seed" "$log_train" 1 \
+    bash crossdata_train.sh "$source" "$seed" "$SHOTS" "$TRAINER" "$CFG" "$SUB" 1
+  local train_rc=$?
+
+  if (( train_rc != 0 )); then
+    printf '%s [ERROR] crossdata source train failed: source=%s shots=%s seed=%s rc=%s\n' \
+      "$(date '+%F %T')" "$source" "$SHOTS" "$seed" "$train_rc" >> "$SCHED_LOG"
+    return "$train_rc"
+  fi
+
+  log_to_csv "crossdata" "source" "$source" "$seed" "$log_train" || true
+  return 0
+}
+
+crossdata_target_one() {
+  local target="$1"
+  local seed="$2"
+  export SHOTS
+  local any_fail=0 source
+
+  [[ ${#crossdata_sources_enabled[@]} -eq 0 ]] && { echo "[crossdata-target][SKIP] no source enabled"; return 0; }
+
+  for source in "${crossdata_sources_enabled[@]}"; do
+    if ! wait_crossdata_source_done "$source" "$SHOTS" "$seed"; then
+      printf '%s [ERROR] crossdata target skipped: source=%s not ready target=%s shots=%s seed=%s\n' \
+        "$(date '+%F %T')" "$source" "$target" "$SHOTS" "$seed" >> "$SCHED_LOG"
+      any_fail=1
+      continue
+    fi
+
+    local log_test="${RUNLOG_DIR}/crosstransfer/tests/${TRAINER}/${CFG}_shots${SHOTS}/${target}/seed${seed}/log.txt"
+    run_and_monitor "crossdata" "target" "$target" "$seed" "$log_test" 0 \
+      bash crossdata_test.sh "$target" "$seed" "$SHOTS" "$TRAINER" "$CFG" "$SUB" 1
+    local test_rc=$?
+
+    if (( test_rc != 0 )); then
+      printf '%s [ERROR] crossdata target test failed: source=%s target=%s shots=%s seed=%s rc=%s\n' \
+        "$(date '+%F %T')" "$source" "$target" "$SHOTS" "$seed" "$test_rc" >> "$SCHED_LOG"
+      any_fail=1
+      continue
+    fi
+
+    log_to_csv "crossdata" "target" "$target" "$seed" "$log_test" || true
+  done
+  return "$any_fail"
+}
+
+domaingen_source_one() {
+  local source="$1"
+  local seed="$2"
+  export SHOTS
+
+  local sigdir sidfile status_prefix
+  sigdir="$(dg_sigdir_source "$source" "$SHOTS" "$seed")"
+  mkdir -p "$sigdir"
+  sidfile="$(dg_sidfile_source "$source" "$SHOTS" "$seed")"
+  status_prefix="${sigdir}/train"
+  rm -f "${status_prefix}.done" "${status_prefix}.fail" "$sidfile" 2>/dev/null || true
+
+  local log_train="${RUNLOG_DIR}/domain_generalization/${source}/${TRAINER}/${CFG}_shots${SHOTS}/seed${seed}/log.txt"
+  EXPORT_SID_FILE="$sidfile" EXPORT_STATUS_PREFIX="$status_prefix" \
+  run_and_monitor "domaingen" "source" "$source" "$seed" "$log_train" 1 \
+    bash domaingen_train.sh "$source" "$seed" "$SHOTS" "$TRAINER" "$CFG" "$SUB" 1
+  local train_rc=$?
+
+  if (( train_rc != 0 )); then
+    printf '%s [ERROR] domaingen source train failed: source=%s shots=%s seed=%s rc=%s\n' \
+      "$(date '+%F %T')" "$source" "$SHOTS" "$seed" "$train_rc" >> "$SCHED_LOG"
+    return "$train_rc"
+  fi
+
+  log_to_csv "domaingen" "source" "$source" "$seed" "$log_train" || true
+  return 0
+}
+
+domaingen_target_one() {
+  local target="$1"
+  local seed="$2"
+  export SHOTS
+  local any_fail=0 source
+
+  [[ ${#domaingen_sources_enabled[@]} -eq 0 ]] && { echo "[domaingen-target][SKIP] no source enabled"; return 0; }
+
+  for source in "${domaingen_sources_enabled[@]}"; do
+    if ! wait_domaingen_source_done "$source" "$SHOTS" "$seed"; then
+      printf '%s [ERROR] domaingen target skipped: source=%s not ready target=%s shots=%s seed=%s\n' \
+        "$(date '+%F %T')" "$source" "$target" "$SHOTS" "$seed" >> "$SCHED_LOG"
+      any_fail=1
+      continue
+    fi
+
+    local log_test="${RUNLOG_DIR}/domain_generalization/tests/${TRAINER}/${CFG}_shots${SHOTS}/${target}/seed${seed}/log.txt"
+    run_and_monitor "domaingen" "target" "$target" "$seed" "$log_test" 0 \
+      bash domaingen_test.sh "$target" "$seed" "$SHOTS" "$TRAINER" "$CFG" "$SUB" 1
+    local test_rc=$?
+
+    if (( test_rc != 0 )); then
+      printf '%s [ERROR] domaingen target test failed: source=%s target=%s shots=%s seed=%s rc=%s\n' \
+        "$(date '+%F %T')" "$source" "$target" "$SHOTS" "$seed" "$test_rc" >> "$SCHED_LOG"
+      any_fail=1
+      continue
+    fi
+
+    log_to_csv "domaingen" "target" "$target" "$seed" "$log_test" || true
+  done
+  return "$any_fail"
+}
+
+run_task() { # $1=current_task $2=seed
+  local current_task="$1"
+  local seed="$2"
+
+  case "$current_task" in
+    base2new_*)
+      base2new_one_model "${current_task#base2new_}" "$seed"
+      ;;
+    crossdata_source_*)
+      crossdata_source_one "${current_task#crossdata_source_}" "$seed"
+      ;;
+    crossdata_target_*)
+      crossdata_target_one "${current_task#crossdata_target_}" "$seed"
+      ;;
+    domaingen_source_*)
+      domaingen_source_one "${current_task#domaingen_source_}" "$seed"
+      ;;
+    domaingen_target_*)
+      domaingen_target_one "${current_task#domaingen_target_}" "$seed"
+      ;;
+    crossdata)
+      crossdata "$seed"  # 兼容旧任务名
+      ;;
+    domaingen)
+      domaingen "$seed"  # 兼容旧任务名
+      ;;
+    *)
+      "$current_task" "$seed"
+      ;;
+  esac
+}
+
 ############################
 # 7) 显存检测（低频缓存）
 ############################
@@ -803,16 +1098,77 @@ check_free_memory_raw() {
   nvidia-smi -i "$GPU_ID" --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null | tr -d ' '
 }
 # 画像 key：一个“任务批次”的身份
-# current_task 形如 base2new_patternnet / domaingen / crossdata ...
+# 新逻辑：优先按 task/phase/dataset + shot 区分显存画像。
+# 例如：domaingen_target_rsicdv2__shot16 与 domaingen_target_resisc45v2__shot16 分开记录；
+#      同一个 key 的 seed1/2/3 默认共享预算。
+mem_core_for() { # $1=current_task -> 输出任务画像核心名
+  local current_task="$1"
+  case "$current_task" in
+    base2new_*)          echo "base2new_${current_task#base2new_}" ;;
+    crossdata_source_*)  echo "crossdata_source_${current_task#crossdata_source_}" ;;
+    crossdata_target_*)  echo "crossdata_target_${current_task#crossdata_target_}" ;;
+    domaingen_source_*)  echo "domaingen_source_${current_task#domaingen_source_}" ;;
+    domaingen_target_*)  echo "domaingen_target_${current_task#domaingen_target_}" ;;
+    *)                   echo "$current_task" ;;
+  esac
+}
+
+mem_dataset_for() { # $1=current_task -> 输出数据集名
+  local current_task="$1"
+  case "$current_task" in
+    base2new_*)          echo "${current_task#base2new_}" ;;
+    crossdata_source_*)  echo "${current_task#crossdata_source_}" ;;
+    crossdata_target_*)  echo "${current_task#crossdata_target_}" ;;
+    domaingen_source_*)  echo "${current_task#domaingen_source_}" ;;
+    domaingen_target_*)  echo "${current_task#domaingen_target_}" ;;
+    *)                   echo "$current_task" ;;
+  esac
+}
+
+mem_family_for() { # $1=current_task -> 输出任务族/阶段
+  local current_task="$1"
+  case "$current_task" in
+    base2new_*)          echo "base2new" ;;
+    crossdata_source_*)  echo "crossdata_source" ;;
+    crossdata_target_*)  echo "crossdata_target" ;;
+    domaingen_source_*)  echo "domaingen_source" ;;
+    domaingen_target_*)  echo "domaingen_target" ;;
+    *)                   echo "$current_task" ;;
+  esac
+}
+
 mem_key_for() {
   local current_task="$1" shot="$2" seed="$3"
+  local core dataset family
+  core="$(mem_core_for "$current_task")"
+  dataset="$(mem_dataset_for "$current_task")"
+  family="$(mem_family_for "$current_task")"
+
   case "${MEM_PROFILE_DIM}" in
-    none)      echo "${current_task}" ;;
-    seed)      echo "${current_task}__seed${seed}" ;;
-    shot)      echo "${current_task}__shot${shot}" ;;
-    seed_shot) echo "${current_task}__shot${shot}__seed${seed}" ;;
-    *)         echo "${current_task}__seed${seed}" ;; # 兜底
+    global|none)             echo "global" ;;
+    task)                    echo "$core" ;;
+    dataset)                 echo "${family}_${dataset}" ;;
+    shot)                    echo "${core}__shot${shot}" ;;              # 兼容旧 shot 粒度，但包含拆分后的 dataset
+    dataset_shot|shot_dataset)
+                              echo "${core}__shot${shot}" ;;
+    seed)                    echo "${core}__seed${seed}" ;;
+    seed_shot|seed_dataset_shot|dataset_shot_seed)
+                              echo "${core}__shot${shot}__seed${seed}" ;;
+    *)                       echo "${core}__shot${shot}" ;;              # 兜底：按 dataset+shot
   esac
+}
+
+profile_known_for_key() {
+  local key="$1"
+  [[ "${mem_est_mb[$key]:-0}" =~ ^[0-9]+$ && "${mem_est_mb[$key]:-0}" -gt 0 ]]
+}
+
+same_mem_key_running() { # $1=key
+  local key="$1" p
+  for p in "${running_pids[@]}"; do
+    [[ "${pid_mem_key[$p]:-}" == "$key" ]] && return 0
+  done
+  return 1
 }
 
 reserve_for_key() {
@@ -1247,6 +1603,14 @@ scheduler() {
             key="$(mem_key_for "$current_task" "$shot" "$seed")"
             reserve_mb="$(reserve_for_key "$key")"
 
+            # 未画像的同一 key 默认不并发：先让一个 seed 跑出真实峰值，后续 seed 复用该 dataset+shot 预算。
+            # 这样可以避免 INIT_RESERVE_MB 低估时，同一高显存数据集的多个 seed 同时启动导致 OOM。
+            if [[ "${ALLOW_PARALLEL_UNPROFILED_SAME_KEY:-0}" != "1" ]]; then
+                if ! profile_known_for_key "$key" && same_mem_key_running "$key"; then
+                    break
+                fi
+            fi
+
             # 两道门槛：
             # 1) 你自己的总预算上限
             if (( TOTAL_RESERVED_MB + reserve_mb > GPU_USER_LIMIT_MB )); then
@@ -1267,7 +1631,7 @@ scheduler() {
                 "$(date '+%F %T')" "$current_task_seed" "$shot" "$seed" "$reserve_mb" "$key" >> "$SCHED_LOG"
 
             # 启动后台 job（wrapper pid）
-            SHOTS="$shot" "$current_task" "$seed" >"$task_runlog" 2>&1 &
+            SHOTS="$shot" run_task "$current_task" "$seed" >"$task_runlog" 2>&1 &
             pid=$!
 
             running_pids+=("$pid")

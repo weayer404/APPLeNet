@@ -16,7 +16,7 @@ COMMON_DIR=${DATASET}/shots_${SHOTS}/${TRAINER}/${CFG}/seed${SEED}
 MODEL_DIR=outputs/base2new/train_base/${COMMON_DIR}
 DIR=outputs/base2new/test_new/${COMMON_DIR}
 
-python visual/vis_patternnet_heatmaps.py \
+python visual/vis_gradcam.py \
 --root ${DATA} \
 --seed ${SEED} \
 --trainer ${TRAINER} \
@@ -27,6 +27,5 @@ python visual/vis_patternnet_heatmaps.py \
 --num-images 3 \
 --target-layer "conv1" \
 --eval-only \
-# --class-names "river,bridge,runway,parking_lot,storage_tank" \
 DATASET.NUM_SHOTS ${SHOTS} \
 DATASET.SUBSAMPLE_CLASSES ${SUB} 
